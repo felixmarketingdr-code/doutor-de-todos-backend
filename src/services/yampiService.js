@@ -1,4 +1,3 @@
-
 const PLANOS_YAMPI = {
   light: {
     nome: 'Doutor de Todos Light',
@@ -23,32 +22,19 @@ function gerarCheckout({ cadastroId, plano }) {
   }
 
   const planoNormalizado = String(plano || '').toLowerCase()
-
   const produto = PLANOS_YAMPI[planoNormalizado]
 
   if (!produto) {
     throw new Error('Plano não encontrado na configuração da Yampi.')
   }
 
-  // Utiliza somente o identificador interno do cadastro.
-  // Nunca incluir CPF, telefone, e-mail ou endereço na URL.
-
+  // Usa somente o identificador interno do cadastro na URL.
+  // Não incluir CPF, telefone, e-mail ou endereço nos parâmetros.
   const url = new URL(produto.checkoutUrl)
 
-  url.searchParams.set(
-    'metadata[cadastro_id]',
-    String(cadastroId)
-  )
-
-  url.searchParams.set(
-    'metadata[origem]',
-    'site_doutor_de_todos'
-  )
-
-  url.searchParams.set(
-    'metadata[plano]',
-    planoNormalizado
-  )
+  url.searchParams.set('metadata[cadastro_id]', String(cadastroId))
+  url.searchParams.set('metadata[origem]', 'site_doutor_de_todos')
+  url.searchParams.set('metadata[plano]', planoNormalizado)
 
   return {
     checkoutUrl: url.toString(),

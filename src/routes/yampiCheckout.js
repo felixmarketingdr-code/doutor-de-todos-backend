@@ -1,4 +1,3 @@
-
 const express = require('express')
 
 const router = express.Router()
@@ -31,29 +30,30 @@ router.post('/checkout', async (req, res) => {
       })
     }
 
-    if (!plano) {
+    if (!['light', 'plus'].includes(String(plano || '').toLowerCase())) {
       return res.status(400).json({
         success: false,
-        error: 'Plano não informado.',
+        error: 'Plano não informado ou inválido.',
       })
     }
 
-    if (!cliente || typeof cliente !== 'object') {
+    if (!cliente || typeof cliente !== 'object' || Array.isArray(cliente)) {
       return res.status(400).json({
         success: false,
         error: 'Dados do cliente não recebidos.',
       })
     }
 
-    // --------------------------------------
-    // VALIDAÇÃO DO CLIENTE
-    // --------------------------------------
-
+    // O cadastro já foi validado em /api/cadastros.
+    // Aqui conferimos os dados de contato usados no checkout.
     const camposObrigatorios = [
       'nome',
       'cpf',
       'email',
       'telefone',
+      'celular',
+      'cidade',
+      'estado',
     ]
 
     const camposAusentes = camposObrigatorios.filter(
@@ -63,7 +63,7 @@ router.post('/checkout', async (req, res) => {
     if (camposAusentes.length > 0) {
       return res.status(400).json({
         success: false,
-        error: 'Existem dados obrigatórios ausentes.',
+        error: 'Existem dados obrigatórios ausentes para preparar o checkout.',
         campos: camposAusentes,
       })
     }
@@ -84,10 +84,6 @@ router.post('/checkout', async (req, res) => {
     console.log('Produto:', checkout.produto)
     console.log('-----------------------------------')
 
-    // --------------------------------------
-    // RESPOSTA AO FRONTEND
-    // --------------------------------------
-
     return res.status(200).json({
       success: true,
       message: 'Checkout preparado com sucesso.',
@@ -95,7 +91,6 @@ router.post('/checkout', async (req, res) => {
       plano: checkout.plano,
       checkoutUrl: checkout.checkoutUrl,
     })
-
   } catch (error) {
     console.error(
       'Erro ao preparar checkout Yampi:',
