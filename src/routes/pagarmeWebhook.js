@@ -10,6 +10,7 @@ const { obterPlano } = require("../services/planosService");
 const {
   buscarCadastroInterno,
   atualizarPagamentoInterno,
+  atualizarStatusPagamentoInterno,
 } = require("./cadastroRoutes");
 
 // ======================================================
@@ -43,7 +44,10 @@ function validarTokenWebhook(tokenRecebido) {
     return false;
   }
 
-  return crypto.timingSafeEqual(recebido, configurado);
+  return crypto.timingSafeEqual(
+    recebido,
+    configurado
+  );
 }
 
 // ======================================================
@@ -51,7 +55,9 @@ function validarTokenWebhook(tokenRecebido) {
 // ======================================================
 
 function normalizarStatus(status) {
-  return String(status || "").trim().toLowerCase();
+  return String(status || "")
+    .trim()
+    .toLowerCase();
 }
 
 function texto(valor) {
@@ -63,13 +69,15 @@ function texto(valor) {
 // ======================================================
 
 function extrairEvento(body) {
-  if (!body || typeof body !== "object" || Array.isArray(body)) {
+  if (
+    !body ||
+    typeof body !== "object" ||
+    Array.isArray(body)
+  ) {
     throw new Error("Payload do webhook inválido.");
   }
 
-  const evento = texto(
-    body.type || body.event
-  );
+  const evento = texto(body.type || body.event);
 
   const pedidoId = texto(
     body.data?.id ||
@@ -78,11 +86,15 @@ function extrairEvento(body) {
   );
 
   if (!evento) {
-    throw new Error("Evento não identificado no webhook.");
+    throw new Error(
+      "Evento não identificado no webhook."
+    );
   }
 
   if (!pedidoId) {
-    throw new Error("Identificador do pedido não encontrado.");
+    throw new Error(
+      "Identificador do pedido não encontrado."
+    );
   }
 
   return {
@@ -102,26 +114,19 @@ function obterValorEsperado(plano, metadata = {}) {
   );
 
   if (plano.id === "light") {
-    /*
-     * Light:
-     * R$ 39,90 mensalidade
-     * R$ 99,90 adesão
-     * Primeira cobrança: R$ 139,80
-     */
     return {
-      valorCentavos: plano.valorPrimeiraCobrancaCentavos,
+      valorCentavos: Number(
+        plano.valorPrimeiraCobrancaCentavos
+      ),
       tipoCobranca: "primeira_cobranca",
     };
   }
 
   if (plano.id === "plus") {
-    /*
-     * Plus:
-     * 12 x R$ 79,90
-     * Total: R$ 958,80
-     */
     return {
-      valorCentavos: plano.valorTotalAnualCentavos,
+      valorCentavos: Number(
+        plano.valorTotalAnualCentavos
+      ),
       tipoCobranca:
         tipoCobranca || "anual_parcelado",
     };
@@ -136,18 +141,15 @@ function obterValorEsperado(plano, metadata = {}) {
 
 function validarDadosPedido(pedido) {
   if (!pedido || typeof pedido !== "object") {
-    throw new Error("Pedido não encontrado na Pagar.me.");
+    throw new Error(
+      "Pedido não encontrado na Pagar.me."
+    );
   }
 
   const metadata = pedido.metadata || {};
 
-  const cadastroId = texto(
-    metadata.cadastro_id
-  );
-
-  const planoId = texto(
-    metadata.plano
-  ).toLowerCase();
+  const cadastroId = texto(metadata.cadastro_id);
+  const planoId = texto(metadata.plano).toLowerCase();
 
   if (!cadastroId) {
     throw new Error(
@@ -163,6 +165,10 @@ function validarDadosPedido(pedido) {
 
   const plano = obterPlano(planoId);
 
+  if (!plano) {
+    throw new Error("Plano não reconhecido.");
+  }
+
   const esperado = obterValorEsperado(
     plano,
     metadata
@@ -172,30 +178,34 @@ function validarDadosPedido(pedido) {
 
   if (
     !Number.isInteger(valorPedido) ||
+    !Number.isInteger(esperado.valorCentavos) ||
     valorPedido !== esperado.valorCentavos
   ) {
-    console.error("Divergência no valor do pedido:", {
-      pedidoId: pedido.id,
-      plano: plano.id,
-      valorRecebido: valorPedido,
-      valorEsperado: esperado.valorCentavos,
-    });
+    console.error(
+      "Divergência no valor do pedido:",
+      {
+        pedidoId: pedido.id,
+        plano: plano.id,
+        valorRecebido: valorPedido,
+        valorEsperado: esperado.valorCentavos,
+      }
+    );
 
     throw new Error(
       "O valor confirmado na Pagar.me não corresponde ao valor esperado do plano."
     );
   }
 
-  /*
-   * Confere também o valor salvo nos metadados,
-   * quando ele estiver presente.
-   */
-  if (metadata.valor_cobranca_centavos !== undefined) {
+  if (
+    metadata.valor_cobranca_centavos !== undefined
+  ) {
     const valorMetadata = Number(
       metadata.valor_cobranca_centavos
     );
 
-    if (valorMetadata !== esperado.valorCentavos) {
+    if (
+      valorMetadata !== esperado.valorCentavos
+    ) {
       throw new Error(
         "O valor informado nos metadados não corresponde ao pedido."
       );
@@ -211,14 +221,66 @@ function validarDadosPedido(pedido) {
 }
 
 // ======================================================
+// RECUPERAR IDENTIFICADOR DO PEDIDO SALVO
+// ======================================================
+
+function normalizarIdentificadorPedido(valor) {
+  if (!valor) return "";
+
+  if (typeof valor === "object") {
+    return texto(
+      valor.idPedido ||
+      valor.id ||
+      valor.order_id ||
+      valor.orderId ||
+      valor.pedido_id
+    );
+  }
+
+  return texto(valor);
+}
+
+function obterPedidoSalvo(cadastro) {
+  return (
+    normalizarIdentificadorPedido(
+      cadastro.pedidoPagarme
+    ) ||
+    normalizarIdentificadorPedido(
+      cadastro.pedidoPagamento
+    )
+  );
+}
+
+// ======================================================
+// VALIDAR VÍNCULO DO PEDIDO COM O CADASTRO
+// ======================================================
+
+function validarVinculoPedido(cadastro, pedidoId) {
+  const pedidoSalvo = obterPedidoSalvo(cadastro);
+
+  if (!pedidoSalvo) {
+    throw new Error(
+      "O cadastro ainda não possui um pedido Pagar.me vinculado."
+    );
+  }
+
+  if (String(pedidoSalvo) !== String(pedidoId)) {
+    throw new Error(
+      "O pedido recebido não corresponde ao pedido vinculado ao cadastro."
+    );
+  }
+}
+
+// ======================================================
 // RECEBIMENTO DO WEBHOOK
-//
 // POST /webhooks/pagarme/:token
 // ======================================================
 
 router.post("/:token", async (req, res) => {
   try {
+    // ======================================
     // 1. AUTENTICAR
+    // ======================================
 
     if (!validarTokenWebhook(req.params.token)) {
       console.warn(
@@ -231,7 +293,9 @@ router.post("/:token", async (req, res) => {
       });
     }
 
+    // ======================================
     // 2. IDENTIFICAR EVENTO E PEDIDO
+    // ======================================
 
     const {
       evento,
@@ -243,7 +307,10 @@ router.post("/:token", async (req, res) => {
     console.log("WEBHOOK PAGAR.ME RECEBIDO");
     console.log("Evento:", evento);
     console.log("Pedido:", pedidoId);
-    console.log("Evento ID:", eventoId || "Não informado");
+    console.log(
+      "Evento ID:",
+      eventoId || "Não informado"
+    );
     console.log("-----------------------------------");
 
     const eventosPermitidos = [
@@ -260,20 +327,31 @@ router.post("/:token", async (req, res) => {
       });
     }
 
-    // 3. CONSULTAR PEDIDO DIRETAMENTE NA PAGAR.ME
+    // ======================================
+    // 3. CONSULTAR PEDIDO NA PAGAR.ME
+    // ======================================
 
-    const pedido = await pagarmeService.consultarPedido(
-      pedidoId
-    );
+    const pedido =
+      await pagarmeService.consultarPedido(pedidoId);
 
-    if (!pedido?.id || String(pedido.id) !== pedidoId) {
+    if (
+      !pedido?.id ||
+      String(pedido.id) !== String(pedidoId)
+    ) {
       return res.status(400).json({
         success: false,
-        error: "O pedido consultado não corresponde à notificação.",
+        error:
+          "O pedido consultado não corresponde à notificação.",
       });
     }
 
+    const statusPedido = normalizarStatus(
+      pedido.status
+    );
+
+    // ======================================
     // 4. VALIDAR CADASTRO, PLANO E VALOR
+    // ======================================
 
     const {
       cadastroId,
@@ -282,11 +360,12 @@ router.post("/:token", async (req, res) => {
       tipoCobranca,
     } = validarDadosPedido(pedido);
 
-    const statusPedido = normalizarStatus(pedido.status);
+    // ======================================
+    // 5. LOCALIZAR CADASTRO NO FIREBASE
+    // ======================================
 
-    // 5. LOCALIZAR CADASTRO NO FIRESTORE
-
-    const cadastro = await buscarCadastroInterno(cadastroId);
+    const cadastro =
+      await buscarCadastroInterno(cadastroId);
 
     if (!cadastro) {
       console.error(
@@ -296,18 +375,22 @@ router.post("/:token", async (req, res) => {
 
       return res.status(404).json({
         success: false,
-        error: "Cadastro vinculado ao pagamento não encontrado.",
+        error:
+          "Cadastro vinculado ao pagamento não encontrado.",
       });
     }
 
-    // Conferir se o plano do cadastro corresponde ao pedido
+    // ======================================
+    // 6. VALIDAR PLANO E PEDIDO VINCULADO
+    // ======================================
 
     const planoCadastro = texto(
-      cadastro.dados?.plano || cadastro.plano
+      cadastro.dados?.plano ||
+      cadastro.plano
     ).toLowerCase();
 
     if (
-      planoCadastro &&
+      !planoCadastro ||
       planoCadastro !== plano.id
     ) {
       throw new Error(
@@ -315,55 +398,20 @@ router.post("/:token", async (req, res) => {
       );
     }
 
-    // Conferir se o pedido pertence ao cadastro
+    validarVinculoPedido(cadastro, pedidoId);
 
-    const pedidoSalvo =
-      cadastro.pedidoPagarme?.id ||
-      cadastro.pedidoPagarme?.order_id ||
-      cadastro.pedidoPagarme ||
-      cadastro.pedidoPagamento;
-
-    if (
-      pedidoSalvo &&
-      String(pedidoSalvo) !== pedidoId
-    ) {
-      throw new Error(
-        "O pedido recebido não corresponde ao pedido vinculado ao cadastro."
-      );
-    }
-
-    // 6. PAGAMENTO CONFIRMADO
+    // ======================================
+    // 7. PAGAMENTO CONFIRMADO
+    // ======================================
 
     if (evento === "order.paid") {
       if (statusPedido !== "paid") {
         return res.status(202).json({
           success: true,
           confirmado: false,
-          message: "Pedido ainda não confirmado como pago.",
+          message:
+            "Pedido ainda não confirmado como pago na Pagar.me.",
           status: statusPedido,
-        });
-      }
-
-      // Impedir reprocessamento de pagamento já confirmado
-
-      const pagamentoJaRegistrado =
-        normalizarStatus(cadastro.statusPagamento) === "pago" &&
-        String(
-          cadastro.pedidoPagarme?.id ||
-          cadastro.pedidoPagarme?.order_id ||
-          cadastro.pedidoPagarme ||
-          cadastro.pedidoPagamento ||
-          ""
-        ) === pedidoId;
-
-      if (pagamentoJaRegistrado) {
-        return res.status(200).json({
-          success: true,
-          confirmado: true,
-          duplicado: true,
-          message: "Este pagamento já foi processado.",
-          cadastroId,
-          pedidoId,
         });
       }
 
@@ -372,45 +420,60 @@ router.post("/:token", async (req, res) => {
       console.log("Pedido:", pedido.id);
       console.log("Cadastro:", cadastroId);
       console.log("Plano:", plano.nome);
-      console.log("Tipo de cobrança:", tipoCobranca);
-      console.log("Valor em centavos:", valorCentavos);
+      console.log(
+        "Tipo de cobrança:",
+        tipoCobranca
+      );
+      console.log(
+        "Valor em centavos:",
+        valorCentavos
+      );
+      console.log(
+        "Valor em reais:",
+        (valorCentavos / 100).toFixed(2)
+      );
       console.log("===================================");
 
-      // 7. ATUALIZAR CADASTRO INTERNO
+      // A função central:
+      // 1. Atualiza o pagamento no cadastro.
+      // 2. Cria/atualiza o cliente.
+      // 3. Converte o lead.
+      // 4. Tenta sincronizar contrato e pagamento
+      //    com a Gestão.
+      //
+      // O valor é convertido de centavos para reais
+      // antes de ser enviado à integração da Gestão.
 
-      await atualizarPagamentoInterno(
-        cadastroId,
-        {
-          gateway: "pagarme",
-          idPedido: pedidoId,
-          status: "pago",
-          valor: valorCentavos,
-          plano: plano.id,
-          tipoCobranca,
-        },
-        "pagarme"
-      );
+      const resultadoPagamentoInterno =
+        await atualizarPagamentoInterno(
+          cadastroId,
+          {
+            gateway: "pagarme",
+            idPedido: pedidoId,
+            status: "pago",
+            valor: valorCentavos / 100,
+            plano: plano.id,
+            tipoCobranca,
+          },
+          "pagarme"
+        );
 
-      // 8. INTEGRAÇÕES DE GESTÃO
-
-      /*
-       * A criação do contrato na Gestão Doutor de Todos
-       * e a gravação na Gestão Saúde Familiar continuam
-       * pendentes de integração.
-       *
-       * Não marcar integração como concluída sem
-       * resposta real das respectivas APIs.
-       */
+      const cadastroFinal =
+        await buscarCadastroInterno(cadastroId);
 
       console.log(
-        "Pagamento registrado internamente:",
+        "Pagamento processado internamente:",
         cadastroId
       );
 
       return res.status(200).json({
         success: true,
         confirmado: true,
-        message: "Pagamento confirmado e registrado internamente.",
+        duplicado:
+          resultadoPagamentoInterno?.duplicado || false,
+
+        message:
+          "Pagamento confirmado e processado.",
 
         pedidoId,
         cadastroId,
@@ -420,23 +483,62 @@ router.post("/:token", async (req, res) => {
         status: "pago",
 
         valorCentavos,
+        valorReais: valorCentavos / 100,
         tipoCobranca,
+
+        resultadoPagamentoInterno,
 
         integracoes: {
           firebase: "pagamento_registrado",
-          gestaoSaudeFamiliar: "pendente_de_integracao",
-          gestaoDoutorDeTodos: "pendente_de_integracao",
+          lead: "convertido",
+          cliente: "registrado",
+
+          gestaoDoutorDeTodos:
+            cadastroFinal?.integracoes
+              ?.gestaoDoutorDeTodos || "pendente",
+
+          detalheGestao:
+            cadastroFinal?.gestao || null,
         },
       });
     }
 
-    // 9. PAGAMENTO RECUSADO
+    // ======================================
+    // 8. PAGAMENTO RECUSADO
+    // ======================================
 
     if (evento === "order.payment_failed") {
+      // Uma tentativa de pagamento pode falhar
+      // enquanto o pedido continua pendente.
+      // Nesse caso, não encerramos o pedido.
+
+      if (
+        statusPedido !== "failed" &&
+        statusPedido !== "payment_failed"
+      ) {
+        return res.status(202).json({
+          success: true,
+          confirmado: false,
+          message:
+            "A tentativa de pagamento falhou, mas o pedido ainda não está encerrado na Pagar.me.",
+          pedidoId,
+          cadastroId,
+          status: statusPedido,
+        });
+      }
+
+      const resultado =
+        await atualizarStatusPagamentoInterno(
+          cadastroId,
+          "falhou",
+          pedidoId,
+          "pagarme"
+        );
+
       console.log(
-        "Pagamento não aprovado:",
-        pedido.id,
-        statusPedido
+        "Pagamento recusado e atualizado:",
+        pedidoId,
+        cadastroId
       );
 
       return res.status(200).json({
@@ -445,17 +547,43 @@ router.post("/:token", async (req, res) => {
         message: "Pagamento não aprovado.",
         pedidoId,
         cadastroId,
-        status: statusPedido,
+        status: "falhou",
+        resultado,
       });
     }
 
-    // 10. PEDIDO CANCELADO
+    // ======================================
+    // 9. PEDIDO CANCELADO
+    // ======================================
 
     if (evento === "order.canceled") {
+      if (
+        statusPedido !== "canceled" &&
+        statusPedido !== "cancelled"
+      ) {
+        return res.status(202).json({
+          success: true,
+          confirmado: false,
+          message:
+            "A Pagar.me ainda não confirma o cancelamento do pedido.",
+          pedidoId,
+          cadastroId,
+          status: statusPedido,
+        });
+      }
+
+      const resultado =
+        await atualizarStatusPagamentoInterno(
+          cadastroId,
+          "cancelado",
+          pedidoId,
+          "pagarme"
+        );
+
       console.log(
-        "Pedido cancelado:",
-        pedido.id,
-        statusPedido
+        "Pedido cancelado e atualizado:",
+        pedidoId,
+        cadastroId
       );
 
       return res.status(200).json({
@@ -464,7 +592,8 @@ router.post("/:token", async (req, res) => {
         message: "Pedido cancelado.",
         pedidoId,
         cadastroId,
-        status: statusPedido,
+        status: "cancelado",
+        resultado,
       });
     }
 
@@ -481,9 +610,14 @@ router.post("/:token", async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      error: "Não foi possível processar o webhook.",
+      error:
+        "Não foi possível processar o webhook.",
     });
   }
 });
+
+// ======================================================
+// EXPORTAÇÃO
+// ======================================================
 
 module.exports = router;
