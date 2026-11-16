@@ -54,6 +54,10 @@ function normalizarStatus(status) {
   return String(status || "").trim().toLowerCase();
 }
 
+function texto(valor) {
+  return String(valor ?? "").trim();
+}
+
 // ======================================================
 // EXTRAÇÃO DO EVENTO
 // ======================================================
@@ -63,16 +67,15 @@ function extrairEvento(body) {
     throw new Error("Payload do webhook inválido.");
   }
 
-  const evento = String(
-    body.type || body.event || ""
-  ).trim();
+  const evento = texto(
+    body.type || body.event
+  );
 
-  const pedidoId = String(
+  const pedidoId = texto(
     body.data?.id ||
     body.data?.order?.id ||
-    body.order?.id ||
-    ""
-  ).trim();
+    body.order?.id
+  );
 
   if (!evento) {
     throw new Error("Evento não identificado no webhook.");
@@ -85,8 +88,46 @@ function extrairEvento(body) {
   return {
     evento,
     pedidoId,
-    eventoId: String(body.id || "").trim(),
+    eventoId: texto(body.id),
   };
+}
+
+// ======================================================
+// CALCULAR VALOR ESPERADO DO PEDIDO
+// ======================================================
+
+function obterValorEsperado(plano, metadata = {}) {
+  const tipoCobranca = texto(
+    metadata.tipo_cobranca
+  );
+
+  if (plano.id === "light") {
+    /*
+     * Light:
+     * R$ 39,90 mensalidade
+     * R$ 99,90 adesão
+     * Primeira cobrança: R$ 139,80
+     */
+    return {
+      valorCentavos: plano.valorPrimeiraCobrancaCentavos,
+      tipoCobranca: "primeira_cobranca",
+    };
+  }
+
+  if (plano.id === "plus") {
+    /*
+     * Plus:
+     * 12 x R$ 79,90
+     * Total: R$ 958,80
+     */
+    return {
+      valorCentavos: plano.valorTotalAnualCentavos,
+      tipoCobranca:
+        tipoCobranca || "anual_parcelado",
+    };
+  }
+
+  throw new Error("Plano não reconhecido.");
 }
 
 // ======================================================
@@ -100,13 +141,13 @@ function validarDadosPedido(pedido) {
 
   const metadata = pedido.metadata || {};
 
-  const cadastroId = String(
-    metadata.cadastro_id || ""
-  ).trim();
+  const cadastroId = texto(
+    metadata.cadastro_id
+  );
 
-  const planoId = String(
-    metadata.plano || ""
-  ).trim().toLowerCase();
+  const planoId = texto(
+    metadata.plano
+  ).toLowerCase();
 
   if (!cadastroId) {
     throw new Error(
@@ -122,19 +163,50 @@ function validarDadosPedido(pedido) {
 
   const plano = obterPlano(planoId);
 
-  if (!plano) {
-    throw new Error("Plano não reconhecido.");
+  const esperado = obterValorEsperado(
+    plano,
+    metadata
+  );
+
+  const valorPedido = Number(pedido.amount);
+
+  if (
+    !Number.isInteger(valorPedido) ||
+    valorPedido !== esperado.valorCentavos
+  ) {
+    console.error("Divergência no valor do pedido:", {
+      pedidoId: pedido.id,
+      plano: plano.id,
+      valorRecebido: valorPedido,
+      valorEsperado: esperado.valorCentavos,
+    });
+
+    throw new Error(
+      "O valor confirmado na Pagar.me não corresponde ao valor esperado do plano."
+    );
   }
 
-  if (Number(pedido.amount) !== Number(plano.valorCentavos)) {
-    throw new Error(
-      "O valor confirmado na Pagar.me não corresponde ao plano."
+  /*
+   * Confere também o valor salvo nos metadados,
+   * quando ele estiver presente.
+   */
+  if (metadata.valor_cobranca_centavos !== undefined) {
+    const valorMetadata = Number(
+      metadata.valor_cobranca_centavos
     );
+
+    if (valorMetadata !== esperado.valorCentavos) {
+      throw new Error(
+        "O valor informado nos metadados não corresponde ao pedido."
+      );
+    }
   }
 
   return {
     cadastroId,
     plano,
+    valorCentavos: valorPedido,
+    tipoCobranca: esperado.tipoCobranca,
   };
 }
 
@@ -194,7 +266,7 @@ router.post("/:token", async (req, res) => {
       pedidoId
     );
 
-    if (String(pedido.id) !== pedidoId) {
+    if (!pedido?.id || String(pedido.id) !== pedidoId) {
       return res.status(400).json({
         success: false,
         error: "O pedido consultado não corresponde à notificação.",
@@ -206,6 +278,8 @@ router.post("/:token", async (req, res) => {
     const {
       cadastroId,
       plano,
+      valorCentavos,
+      tipoCobranca,
     } = validarDadosPedido(pedido);
 
     const statusPedido = normalizarStatus(pedido.status);
@@ -227,13 +301,34 @@ router.post("/:token", async (req, res) => {
     }
 
     // Conferir se o plano do cadastro corresponde ao pedido
-    const planoCadastro = String(
-      cadastro.dados?.plano || cadastro.plano || ""
+
+    const planoCadastro = texto(
+      cadastro.dados?.plano || cadastro.plano
     ).toLowerCase();
 
-    if (planoCadastro && planoCadastro !== plano.id) {
+    if (
+      planoCadastro &&
+      planoCadastro !== plano.id
+    ) {
       throw new Error(
         "O plano do cadastro não corresponde ao plano do pedido."
+      );
+    }
+
+    // Conferir se o pedido pertence ao cadastro
+
+    const pedidoSalvo =
+      cadastro.pedidoPagarme?.id ||
+      cadastro.pedidoPagarme?.order_id ||
+      cadastro.pedidoPagarme ||
+      cadastro.pedidoPagamento;
+
+    if (
+      pedidoSalvo &&
+      String(pedidoSalvo) !== pedidoId
+    ) {
+      throw new Error(
+        "O pedido recebido não corresponde ao pedido vinculado ao cadastro."
       );
     }
 
@@ -250,12 +345,14 @@ router.post("/:token", async (req, res) => {
       }
 
       // Impedir reprocessamento de pagamento já confirmado
+
       const pagamentoJaRegistrado =
         normalizarStatus(cadastro.statusPagamento) === "pago" &&
         String(
           cadastro.pedidoPagarme?.id ||
           cadastro.pedidoPagarme?.order_id ||
           cadastro.pedidoPagarme ||
+          cadastro.pedidoPagamento ||
           ""
         ) === pedidoId;
 
@@ -275,7 +372,8 @@ router.post("/:token", async (req, res) => {
       console.log("Pedido:", pedido.id);
       console.log("Cadastro:", cadastroId);
       console.log("Plano:", plano.nome);
-      console.log("Valor em centavos:", pedido.amount);
+      console.log("Tipo de cobrança:", tipoCobranca);
+      console.log("Valor em centavos:", valorCentavos);
       console.log("===================================");
 
       // 7. ATUALIZAR CADASTRO INTERNO
@@ -286,27 +384,26 @@ router.post("/:token", async (req, res) => {
           gateway: "pagarme",
           idPedido: pedidoId,
           status: "pago",
-          valor: Number(pedido.amount),
+          valor: valorCentavos,
           plano: plano.id,
+          tipoCobranca,
         },
         "pagarme"
       );
 
       // 8. INTEGRAÇÕES DE GESTÃO
-      //
-      // A criação do contrato na Gestão Doutor de Todos
-      // e a gravação do contrato na Gestão Saúde Familiar
-      // precisam ser conectadas após validar:
-      //
-      // - Estrutura real dos dados do cadastro.
-      // - Endereço completo exigido pela API.
-      // - Estrutura do contrato no Firestore.
-      // - Aceitação do ID Pagar.me pela API externa.
-      //
-      // Não marcar integração como concluída sem resposta real.
+
+      /*
+       * A criação do contrato na Gestão Doutor de Todos
+       * e a gravação na Gestão Saúde Familiar continuam
+       * pendentes de integração.
+       *
+       * Não marcar integração como concluída sem
+       * resposta real das respectivas APIs.
+       */
 
       console.log(
-        "Pagamento registrado internamente.",
+        "Pagamento registrado internamente:",
         cadastroId
       );
 
@@ -314,11 +411,17 @@ router.post("/:token", async (req, res) => {
         success: true,
         confirmado: true,
         message: "Pagamento confirmado e registrado internamente.",
+
         pedidoId,
         cadastroId,
+
         gateway: "pagarme",
         plano: plano.id,
         status: "pago",
+
+        valorCentavos,
+        tipoCobranca,
+
         integracoes: {
           firebase: "pagamento_registrado",
           gestaoSaudeFamiliar: "pendente_de_integracao",
