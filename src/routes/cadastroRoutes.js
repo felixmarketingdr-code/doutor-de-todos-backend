@@ -1,581 +1,529 @@
-const express = require('express')
 
-const crypto = require('crypto')
+const express = require("express");
+const crypto = require("crypto");
+const { db } = require("../config/firebase");
 
-const router = express.Router()
+const router = express.Router();
 
-// ==========================================
+const COLECAO = "cadastrosSite";
 
-// ARMAZENAMENTO TEMPORÁRIO
-
-// SOMENTE PARA DESENVOLVIMENTO LOCAL
-
-// ==========================================
-
-const cadastrosTemporarios = new Map()
-
-// ==========================================
-
+// ======================================================
 // FUNÇÕES AUXILIARES
-
-// ==========================================
+// ======================================================
 
 function texto(valor) {
-
-  return String(valor ?? '').trim()
-
+  return String(valor ?? "").trim();
 }
 
 function numeros(valor) {
-
-  return String(valor ?? '').replace(/\D/g, '')
-
+  return String(valor ?? "").replace(/\D/g, "");
 }
 
 function validarCPF(valor) {
+  const cpf = numeros(valor);
 
-  const cpf = numeros(valor)
-
-  if (
-
-    cpf.length !== 11 ||
-
-    /^(\d)\1{10}$/.test(cpf)
-
-  ) {
-
-    return false
-
+  if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) {
+    return false;
   }
 
-  let soma = 0
+  let soma = 0;
 
   for (let i = 0; i < 9; i++) {
-
-    soma += Number(cpf[i]) * (10 - i)
-
+    soma += Number(cpf[i]) * (10 - i);
   }
 
-  let digito = (soma * 10) % 11
+  let digito = (soma * 10) % 11;
+  if (digito === 10) digito = 0;
 
-  if (digito === 10) digito = 0
+  if (digito !== Number(cpf[9])) return false;
 
-  if (digito !== Number(cpf[9])) {
-
-    return false
-
-  }
-
-  soma = 0
+  soma = 0;
 
   for (let i = 0; i < 10; i++) {
-
-    soma += Number(cpf[i]) * (11 - i)
-
+    soma += Number(cpf[i]) * (11 - i);
   }
 
-  digito = (soma * 10) % 11
+  digito = (soma * 10) % 11;
+  if (digito === 10) digito = 0;
 
-  if (digito === 10) digito = 0
-
-  return digito === Number(cpf[10])
-
+  return digito === Number(cpf[10]);
 }
 
 function gerarRespostaCadastro(cadastro) {
-
   return {
-
     sucesso: true,
-
     cadastroId: cadastro.cadastroId,
-
     statusCadastro: cadastro.statusCadastro,
-
     statusPagamento: cadastro.statusPagamento,
-
     plano: cadastro.dados.plano,
-
-    message: 'Cadastro recebido com sucesso.',
-
-  }
-
+    message: "Cadastro recebido com sucesso.",
+  };
 }
 
-// ==========================================
-
+// ======================================================
 // CRIAR CADASTRO
-
 // POST /api/cadastros
+// ======================================================
 
-// ==========================================
-
-router.post('/', (req, res) => {
-
+router.post("/", async (req, res) => {
   try {
-
-    const dados = req.body
+    const dados = req.body;
 
     if (
-
       !dados ||
-
-      typeof dados !== 'object' ||
-
+      typeof dados !== "object" ||
       Array.isArray(dados)
-
     ) {
-
       return res.status(400).json({
-
-        error: 'Dados do cadastro não recebidos.',
-
-      })
-
+        error: "Dados do cadastro não recebidos.",
+      });
     }
-
-    // --------------------------------------
 
     // CAMPOS OBRIGATÓRIOS
 
-    // --------------------------------------
-
     const camposObrigatorios = [
-        'nome',
-        'cpf',
-        'dataNascimento',
-        'email',
-        'celular',
-        'telefone',
-        'cidade',
-        'estado',
-        'plano',
-        'pagamento',
-    ]
+      "nome",
+      "cpf",
+      "dataNascimento",
+      "email",
+      "celular",
+      "telefone",
+      "cidade",
+      "estado",
+      "plano",
+      "pagamento",
+    ];
 
     const camposAusentes = camposObrigatorios.filter(
-
       (campo) => !texto(dados[campo])
-
-    )
+    );
 
     if (camposAusentes.length > 0) {
-
       return res.status(400).json({
-
-        error: 'Preencha todos os campos obrigatórios.',
-
+        error: "Preencha todos os campos obrigatórios.",
         campos: camposAusentes,
-
-      })
-
+      });
     }
 
-    // --------------------------------------
-
-    // NORMALIZAÇÃO DOS DADOS
-
-    // --------------------------------------
+    // NORMALIZAÇÃO
 
     const cliente = {
-        nome: texto(dados.nome),
-        cpf: numeros(dados.cpf),
-        dataNascimento: texto(dados.dataNascimento),
-        email: texto(dados.email).toLowerCase(),
-        celular: numeros(dados.celular),
-        telefone: numeros(dados.telefone),
-        cidade: texto(dados.cidade),
-        estado: texto(dados.estado).toUpperCase(),
-
-        plano: texto(dados.plano).toLowerCase(),
-        pagamento: texto(dados.pagamento).toLowerCase(),
-
-        origem: 'site_doutor_de_todos',
-        consentimentoPrivacidade:
-          dados.consentimentoPrivacidade === true,
-        dataConsentimento: texto(dados.dataConsentimento),
-    }
-
-    // --------------------------------------
+      nome: texto(dados.nome),
+      cpf: numeros(dados.cpf),
+      dataNascimento: texto(dados.dataNascimento),
+      email: texto(dados.email).toLowerCase(),
+      celular: numeros(dados.celular),
+      telefone: numeros(dados.telefone),
+      cidade: texto(dados.cidade),
+      estado: texto(dados.estado).toUpperCase(),
+      plano: texto(dados.plano).toLowerCase(),
+      pagamento: texto(dados.pagamento).toLowerCase(),
+      origem: "site_doutor_de_todos",
+      consentimentoPrivacidade:
+        dados.consentimentoPrivacidade === true,
+      dataConsentimento: texto(dados.dataConsentimento),
+    };
 
     // VALIDAÇÃO DO NOME
 
-    // --------------------------------------
-
     if (cliente.nome.split(/\s+/).length < 2) {
-
       return res.status(400).json({
-
-        error: 'Informe o nome completo do titular.',
-
-        campos: ['nome'],
-
-      })
-
+        error: "Informe o nome completo do titular.",
+        campos: ["nome"],
+      });
     }
-
-    // --------------------------------------
 
     // VALIDAÇÃO DO CPF
 
-    // --------------------------------------
-
     if (!validarCPF(cliente.cpf)) {
-
       return res.status(400).json({
-
-        error: 'CPF inválido.',
-
-        campos: ['cpf'],
-
-      })
-
+        error: "CPF inválido.",
+        campos: ["cpf"],
+      });
     }
 
-    // --------------------------------------
-
-    // VALIDAÇÃO DA DATA
-
-    // --------------------------------------
+    // DATA DE NASCIMENTO
 
     const nascimento = new Date(
-
       `${cliente.dataNascimento}T00:00:00`
-
-    )
+    );
 
     if (
-
       Number.isNaN(nascimento.getTime()) ||
-
-      nascimento > new Date()
-
+      nascimento > new Date() ||
+      nascimento.toISOString().slice(0, 10) !==
+        cliente.dataNascimento
     ) {
-
       return res.status(400).json({
-
-        error: 'Data de nascimento inválida.',
-
-        campos: ['dataNascimento'],
-
-      })
-
+        error: "Data de nascimento inválida.",
+        campos: ["dataNascimento"],
+      });
     }
 
-    // --------------------------------------
-    // VALIDAÇÃO DOS TELEFONES
-    // --------------------------------------
+    // TELEFONES
 
     if (
       cliente.telefone.length < 10 ||
-      cliente.celular.length < 10
+      cliente.telefone.length > 11 ||
+      cliente.celular.length < 10 ||
+      cliente.celular.length > 11
     ) {
       return res.status(400).json({
-        error: 'Informe telefone e celular válidos com DDD.',
-        campos: ['telefone', 'celular'],
-      })
+        error: "Informe telefone e celular válidos com DDD.",
+        campos: ["telefone", "celular"],
+      });
     }
 
-    // --------------------------------------
-
-    // VALIDAÇÃO DO E-MAIL
-
-    // --------------------------------------
+    // E-MAIL
 
     const emailValido =
-
-      /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cliente.email)
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cliente.email);
 
     if (!emailValido) {
-
       return res.status(400).json({
-
-        error: 'E-mail inválido.',
-
-        campos: ['email'],
-
-      })
-
+        error: "E-mail inválido.",
+        campos: ["email"],
+      });
     }
 
-    // --------------------------------------
+    // PLANO
 
-    // VALIDAÇÃO DO PLANO
-
-    // --------------------------------------
-
-    if (!['light', 'plus'].includes(cliente.plano)) {
-
+    if (!["light", "plus"].includes(cliente.plano)) {
       return res.status(400).json({
-
-        error: 'Plano não reconhecido.',
-
-        campos: ['plano'],
-
-      })
-
+        error: "Plano não reconhecido.",
+        campos: ["plano"],
+      });
     }
 
-    // --------------------------------------
+    // PAGAMENTO
 
-    // VALIDAÇÃO DO PAGAMENTO
-
-    // --------------------------------------
-
-    if (!['cartao', 'energia'].includes(cliente.pagamento)) {
-
+    if (!["cartao", "energia"].includes(cliente.pagamento)) {
       return res.status(400).json({
-
-        error: 'Forma de pagamento não reconhecida.',
-
-        campos: ['pagamento'],
-
-      })
-
+        error: "Forma de pagamento não reconhecida.",
+        campos: ["pagamento"],
+      });
     }
 
-    // --------------------------------------
-
-    // VALIDAÇÃO DO CONSENTIMENTO
-
-    // --------------------------------------
+    // CONSENTIMENTO
 
     if (!cliente.consentimentoPrivacidade) {
-
       return res.status(400).json({
-
-        error: 'O consentimento para tratamento dos dados é necessário.',
-
-        campos: ['consentimentoPrivacidade'],
-
-      })
-
+        error: "O consentimento para tratamento dos dados é necessário.",
+        campos: ["consentimentoPrivacidade"],
+      });
     }
 
-    // --------------------------------------
+    // ==================================================
+    // DADOS ENEL
+    // ==================================================
 
-    // GERAÇÃO DO IDENTIFICADOR
+    if (cliente.pagamento === "energia") {
+      const energiaRecebida = dados.energia;
 
-    // --------------------------------------
+      if (
+        !energiaRecebida ||
+        typeof energiaRecebida !== "object" ||
+        Array.isArray(energiaRecebida)
+      ) {
+        return res.status(400).json({
+          error: "Informe os dados da conta de energia ENEL.",
+          campos: ["energia"],
+        });
+      }
 
-    const cadastroId = crypto.randomUUID()
+      const numeroInstalacao = numeros(
+        energiaRecebida.numeroInstalacao
+      );
 
-    // --------------------------------------
+      const numeroCliente = numeros(
+        energiaRecebida.numeroCliente
+      );
 
-    // REGISTRO DO CADASTRO
+      if (
+        numeroInstalacao.length < 5 ||
+        numeroInstalacao.length > 30
+      ) {
+        return res.status(400).json({
+          error: "Número de instalação ENEL inválido.",
+          campos: ["numeroInstalacao"],
+        });
+      }
 
-    // --------------------------------------
+      if (
+        numeroCliente.length < 5 ||
+        numeroCliente.length > 30
+      ) {
+        return res.status(400).json({
+          error: "Número do cliente ENEL inválido.",
+          campos: ["numeroClienteEnel"],
+        });
+      }
+
+      cliente.energia = {
+        concessionaria: "ENEL",
+        numeroInstalacao,
+        numeroCliente,
+        titular: cliente.nome,
+      };
+    }
+
+    // ==================================================
+    // DADOS DE ENDEREÇO
+    // ==================================================
+    // Guardamos os campos se o frontend os enviar.
+    // Eles serão necessários para a API de Gestão.
+    // Não são obrigatórios neste cadastro atual.
+
+    cliente.endereco = {
+      cep: numeros(dados.cep),
+      uf: texto(dados.uf || dados.estado).toUpperCase(),
+      cidade: texto(dados.cidade),
+      bairro: texto(dados.bairro),
+      logradouro: texto(dados.logradouro),
+      numero: texto(dados.numero),
+      complemento: texto(dados.complemento),
+    };
+
+    // ==================================================
+    // CRIAR DOCUMENTO NO FIRESTORE
+    // ==================================================
+
+    const cadastroId = crypto.randomUUID();
+    const agora = new Date().toISOString();
 
     const cadastro = {
-
       cadastroId,
-
       dados: cliente,
 
-      statusCadastro: 'aguardando_pagamento',
+      statusCadastro:
+        cliente.pagamento === "energia"
+          ? "aguardando_analise"
+          : "aguardando_pagamento",
 
-      statusPagamento: 'pendente',
+      statusPagamento: "pendente",
 
+      gatewayPagamento: null,
+      pedidoPagamento: null,
+      pedidoPagarme: null,
       pedidoYampi: null,
 
-      criadoEm: new Date().toISOString(),
+      integracoes: {
+        firebase: "concluida",
+        gestaoSaudeFamiliar: "pendente",
+        gestaoDoutorDeTodos: "pendente",
+      },
 
-      atualizadoEm: new Date().toISOString(),
+      criadoEm: agora,
+      atualizadoEm: agora,
+    };
 
-    }
+    await db
+      .collection(COLECAO)
+      .doc(cadastroId)
+      .create(cadastro);
 
-    cadastrosTemporarios.set(cadastroId, cadastro)
-
-    // --------------------------------------
-
-    // LOGS SEM EXPOR DADOS PESSOAIS
-
-    // --------------------------------------
-
-    console.log('-----------------------------------')
-
-    console.log('NOVO CADASTRO RECEBIDO')
-
-    console.log('Cadastro:', cadastroId)
-
-    console.log('Plano:', cliente.plano)
-
-    console.log('Pagamento:', cliente.pagamento)
-
-    console.log('Status:', cadastro.statusCadastro)
-
-    console.log('-----------------------------------')
+    console.log("-----------------------------------");
+    console.log("NOVO CADASTRO SALVO NO FIREBASE");
+    console.log("Cadastro:", cadastroId);
+    console.log("Plano:", cliente.plano);
+    console.log("Pagamento:", cliente.pagamento);
+    console.log("Status:", cadastro.statusCadastro);
+    console.log("-----------------------------------");
 
     return res.status(201).json(
-
       gerarRespostaCadastro(cadastro)
-
-    )
+    );
 
   } catch (error) {
-
     console.error(
-
-      'Erro ao receber cadastro:',
-
+      "Erro ao receber cadastro:",
       error.message
-
-    )
+    );
 
     return res.status(500).json({
-
-      error: 'Erro interno ao receber o cadastro.',
-
-    })
-
+      error: "Erro interno ao receber o cadastro.",
+    });
   }
+});
 
-})
-
-// ==========================================
-
+// ======================================================
 // CONSULTAR CADASTRO
-
 // GET /api/cadastros/:id
+// ======================================================
 
-//
-
-// SOMENTE PARA TESTES LOCAIS.
-
-// NÃO EXPOR DADOS PESSOAIS PUBLICAMENTE.
-
-// ==========================================
-
-router.get('/:id', (req, res) => {
-
+router.get("/:id", async (req, res) => {
   try {
-
-    const cadastro = cadastrosTemporarios.get(
-
+    const cadastro = await buscarCadastroInterno(
       req.params.id
-
-    )
+    );
 
     if (!cadastro) {
-
       return res.status(404).json({
-
-        error: 'Cadastro não encontrado.',
-
-      })
-
+        error: "Cadastro não encontrado.",
+      });
     }
 
-    // Não devolve CPF, endereço, telefone ou e-mail.
+    // Não expõe CPF, endereço, telefone ou e-mail.
 
     return res.status(200).json({
-
       cadastroId: cadastro.cadastroId,
-
       statusCadastro: cadastro.statusCadastro,
-
       statusPagamento: cadastro.statusPagamento,
-
       plano: cadastro.dados.plano,
-
-      pedidoYampi: cadastro.pedidoYampi,
-
+      gatewayPagamento: cadastro.gatewayPagamento || null,
+      pedidoPagamento: cadastro.pedidoPagamento || null,
       criadoEm: cadastro.criadoEm,
-
-    })
+    });
 
   } catch (error) {
-
     console.error(
-
-      'Erro ao consultar cadastro:',
-
+      "Erro ao consultar cadastro:",
       error.message
-
-    )
+    );
 
     return res.status(500).json({
+      error: "Erro ao consultar cadastro.",
+    });
+  }
+});
 
-      error: 'Erro ao consultar cadastro.',
+// ======================================================
+// CONSULTA INTERNA
+// ======================================================
 
-    })
+async function buscarCadastroInterno(cadastroId) {
+  if (!cadastroId) return null;
 
+  const documento = await db
+    .collection(COLECAO)
+    .doc(String(cadastroId))
+    .get();
+
+  if (!documento.exists) {
+    return null;
   }
 
-})
-
-// ==========================================
-
-// CONSULTA INTERNA PARA OUTROS SERVIÇOS
-
-// Não é uma rota HTTP pública.
-
-// ==========================================
-
-function buscarCadastroInterno(cadastroId) {
-
-  return cadastrosTemporarios.get(cadastroId) || null
-
+  return documento.data();
 }
 
-// ==========================================
+// ======================================================
+// ATUALIZAR PAGAMENTO
+// COMPATÍVEL COM PAGAR.ME E YAMPI
+// ======================================================
 
-// ATUALIZAÇÃO INTERNA DO PAGAMENTO
-
-// ==========================================
-
-function atualizarPagamentoInterno(
-
+async function atualizarPagamentoInterno(
   cadastroId,
-
-  pedidoYampi
-
+  pedidoPagamento,
+  gateway = "pagarme"
 ) {
-
-  const cadastro = cadastrosTemporarios.get(cadastroId)
-
-  if (!cadastro) {
-
-    return false
-
+  if (!cadastroId || !pedidoPagamento) {
+    throw new Error(
+      "Cadastro ou identificador do pedido não informado."
+    );
   }
 
-  cadastro.statusPagamento = 'pago'
+  const gatewayNormalizado = String(gateway)
+    .trim()
+    .toLowerCase();
 
-  cadastro.statusCadastro = 'pagamento_confirmado'
+  if (!["pagarme", "pagar.me", "yampi"].includes(gatewayNormalizado)) {
+    throw new Error("Gateway de pagamento não reconhecido.");
+  }
 
-  cadastro.pedidoYampi = String(pedidoYampi || '')
+  const gatewayFinal =
+    gatewayNormalizado === "yampi" ? "yampi" : "pagarme";
 
-  cadastro.atualizadoEm = new Date().toISOString()
+  const pedidoId =
+    typeof pedidoPagamento === "object"
+      ? String(
+          pedidoPagamento.idPedido ||
+          pedidoPagamento.id ||
+          pedidoPagamento.order_id ||
+          ""
+        ).trim()
+      : String(pedidoPagamento).trim();
 
-  cadastrosTemporarios.set(cadastroId, cadastro)
+  if (!pedidoId) {
+    throw new Error("Identificador do pedido inválido.");
+  }
 
-  console.log(
+  const referencia = db
+    .collection(COLECAO)
+    .doc(String(cadastroId));
 
-    'Pagamento associado ao cadastro:',
+  return db.runTransaction(async (transaction) => {
+    const documento = await transaction.get(referencia);
 
-    cadastroId
+    if (!documento.exists) {
+      throw new Error("Cadastro não encontrado no Firebase.");
+    }
 
-  )
+    const cadastro = documento.data();
 
-  return true
+    const pedidoAnterior =
+      gatewayFinal === "yampi"
+        ? cadastro.pedidoYampi
+        : cadastro.pedidoPagarme;
 
+    // Idempotência: mesmo gateway e mesmo pedido.
+    if (
+      cadastro.statusPagamento === "pago" &&
+      cadastro.gatewayPagamento === gatewayFinal &&
+      String(pedidoAnterior || "") === pedidoId
+    ) {
+      return {
+        sucesso: true,
+        duplicado: true,
+        cadastroId,
+        gateway: gatewayFinal,
+        pedidoId,
+      };
+    }
+
+    // Não permite substituir um pagamento já confirmado
+    // por outro pedido ou gateway.
+    if (cadastro.statusPagamento === "pago") {
+      throw new Error(
+        "Este cadastro já possui outro pagamento confirmado."
+      );
+    }
+
+    const agora = new Date().toISOString();
+
+    const atualizacao = {
+      statusPagamento: "pago",
+      statusCadastro: "pagamento_confirmado",
+      gatewayPagamento: gatewayFinal,
+      pedidoPagamento: pedidoId,
+      atualizadoEm: agora,
+    };
+
+    if (gatewayFinal === "yampi") {
+      atualizacao.pedidoYampi = pedidoId;
+    } else {
+      atualizacao.pedidoPagarme = pedidoId;
+    }
+
+    transaction.update(referencia, atualizacao);
+
+    return {
+      sucesso: true,
+      duplicado: false,
+      cadastroId,
+      gateway: gatewayFinal,
+      pedidoId,
+    };
+  });
 }
 
-// ==========================================
-
+// ======================================================
 // EXPORTAÇÕES
+// ======================================================
 
-// ==========================================
+module.exports = router;
 
-module.exports = router
-
-module.exports.buscarCadastroInterno = buscarCadastroInterno
+module.exports.buscarCadastroInterno =
+  buscarCadastroInterno;
 
 module.exports.atualizarPagamentoInterno =
-
-  atualizarPagamentoInterno
-
-module.exports.cadastrosTemporarios =
-
-  cadastrosTemporarios
+  atualizarPagamentoInterno;
