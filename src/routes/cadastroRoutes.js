@@ -1294,7 +1294,7 @@ router.post("/", async (req, res) => {
 
 
 
-   const nascimento = new Date(
+const nascimento = new Date(
   `${cliente.dataNascimento}T00:00:00`
 );
 
