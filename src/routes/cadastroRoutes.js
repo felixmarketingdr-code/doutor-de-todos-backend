@@ -1350,7 +1350,7 @@ const nascimento = new Date(
 
     const emailValido =
 
-      /^[^\s@]+@[^\s@]+**\\.**[^\s@]+$/.test(cliente.email);
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cliente.email);
 
 
 
