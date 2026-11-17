@@ -1,3 +1,4 @@
+
 const express = require('express');
 const crypto = require('crypto');
 
@@ -28,7 +29,6 @@ function erroHttp(mensagem, status = 400) {
 
 function separarTelefone(valor) {
   const numero = somenteNumeros(valor);
-
   const nacional = numero.startsWith('55')
     ? numero.slice(2)
     : numero;
@@ -85,7 +85,6 @@ function validarCliente(cliente) {
 
   const email = texto(cliente.email).toLowerCase();
 
-  // Expressão corrigida para validação do e-mail.
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     throw erroHttp('E-mail inválido.');
   }
@@ -104,7 +103,7 @@ function validarCliente(cliente) {
 }
 
 /* =====================================================
-   EXTRAÇÃO DA COBRANÇA E DA TRANSAÇÃO
+   EXTRAÇÃO DA COBRANÇA E TRANSAÇÃO
 ===================================================== */
 
 function extrairTransacao(pedido) {
@@ -123,44 +122,87 @@ function extrairTransacao(pedido) {
 }
 
 function primeiroValor(...valores) {
-  for (const valor of valores) {
-    if (
-      valor !== undefined &&
-      valor !== null &&
-      String(valor).trim() !== ''
-    ) {
-      return valor;
-    }
-  }
+  return valores.find(valor =>
+    valor !== undefined &&
+    valor !== null &&
+    String(valor).trim() !== ''
+  ) ?? null;
+}
 
-  return null;
+/* =====================================================
+   SOMAR UM MÊS DE CALENDÁRIO
+
+   Exemplo:
+   15/01 -> 15/02
+   31/01 -> último dia de fevereiro
+===================================================== */
+
+function adicionarUmMes(dataBase = new Date()) {
+  const ano = dataBase.getFullYear();
+  const mes = dataBase.getMonth();
+  const dia = dataBase.getDate();
+
+  const ultimoDia = new Date(
+    ano,
+    mes + 2,
+    0
+  ).getDate();
+
+  const diaDestino = Math.min(dia, ultimoDia);
+
+  const proxima = new Date(dataBase);
+
+  proxima.setDate(1);
+  proxima.setMonth(mes + 1);
+  proxima.setDate(diaDestino);
+  proxima.setHours(0, 0, 0, 0);
+
+  return proxima;
 }
 
 /* =====================================================
    CÁLCULO DOS VALORES
 
    LIGHT:
-   Primeira cobrança = mensalidade + adesão.
-   Mensalidade posterior = R$ 39,90.
+   Primeira cobrança = R$ 139,80
+   Próximas mensalidades = R$ 39,90
 
    PLUS:
-   Total anual = 12 parcelas de R$ 79,90.
+   Total anual = R$ 958,80
+   Cartão = 12 parcelas de R$ 79,90
 ===================================================== */
 
-function calcularCobranca(produto, metodo, parcelasSolicitadas) {
+function calcularCobranca(
+  produto,
+  metodo,
+  parcelasSolicitadas
+) {
   if (produto.id === 'light') {
-    if (!produto.valorPrimeiraCobrancaCentavos) {
+    if (metodo !== 'credit_card') {
       throw erroHttp(
-        'Valor da primeira cobrança do plano Light não configurado.',
+        'O plano Light possui mensalidade automática e aceita somente cartão de crédito.'
+      );
+    }
+
+    if (
+      !produto.valorPrimeiraCobrancaCentavos ||
+      !produto.valorMensalCentavos
+    ) {
+      throw erroHttp(
+        'Valores do plano Light não configurados.',
         500
       );
     }
 
     return {
-      valorCentavos: produto.valorPrimeiraCobrancaCentavos,
+      valorCentavos:
+        produto.valorPrimeiraCobrancaCentavos,
+
       parcelas: 1,
+
       descricao:
         'Plano Light - primeira mensalidade e taxa de adesão',
+
       tipoCobranca: 'primeira_cobranca',
     };
   }
@@ -174,7 +216,9 @@ function calcularCobranca(produto, metodo, parcelasSolicitadas) {
     }
 
     if (metodo === 'credit_card') {
-      const parcelas = Number(parcelasSolicitadas || 12);
+      const parcelas = Number(
+        parcelasSolicitadas || 12
+      );
 
       if (parcelas !== 12) {
         throw erroHttp(
@@ -183,17 +227,33 @@ function calcularCobranca(produto, metodo, parcelasSolicitadas) {
       }
 
       return {
-        valorCentavos: produto.valorTotalAnualCentavos,
+        valorCentavos:
+          produto.valorTotalAnualCentavos,
+
         parcelas: 12,
-        descricao: 'Plano Plus - contratação anual em 12 parcelas',
+
+        descricao:
+          'Plano Plus - contratação anual em 12 parcelas',
+
         tipoCobranca: 'anual_parcelado',
       };
     }
 
+    if (!['pix', 'boleto'].includes(metodo)) {
+      throw erroHttp(
+        'Forma de pagamento inválida para o plano Plus.'
+      );
+    }
+
     return {
-      valorCentavos: produto.valorTotalAnualCentavos,
+      valorCentavos:
+        produto.valorTotalAnualCentavos,
+
       parcelas: 1,
-      descricao: 'Plano Plus - contratação anual',
+
+      descricao:
+        'Plano Plus - contratação anual',
+
       tipoCobranca: 'anual_integral',
     };
   }
@@ -203,15 +263,12 @@ function calcularCobranca(produto, metodo, parcelasSolicitadas) {
 
 /* =====================================================
    CONSULTAR PEDIDO ANTERIOR
-
-   Evita criar outro pedido quando já existe uma cobrança
-   pendente para o mesmo cadastro, método e valor.
 ===================================================== */
 
 async function consultarPedidoExistente(
   cadastro,
   metodo,
-  cobrancaCalculada
+  calculada
 ) {
   const pedidoId =
     cadastro.pedidoPagarme ||
@@ -225,7 +282,10 @@ async function consultarPedidoExistente(
     cadastro.metodoPagamento
   ).toLowerCase();
 
-  if (metodoAnterior && metodoAnterior !== metodo) {
+  if (
+    metodoAnterior &&
+    metodoAnterior !== metodo
+  ) {
     return null;
   }
 
@@ -235,7 +295,7 @@ async function consultarPedidoExistente(
 
   if (
     valorAnterior &&
-    valorAnterior !== cobrancaCalculada.valorCentavos
+    valorAnterior !== calculada.valorCentavos
   ) {
     return null;
   }
@@ -264,15 +324,16 @@ async function consultarPedidoExistente(
 
     if (
       Number(pedido.amount) !==
-      Number(cobrancaCalculada.valorCentavos)
+      Number(calculada.valorCentavos)
     ) {
       return null;
     }
 
     return pedido;
+
   } catch (error) {
     console.error(
-      'Não foi possível consultar pedido anterior:',
+      'Falha ao consultar pedido anterior:',
       error.message
     );
 
@@ -292,7 +353,8 @@ async function salvarPedidoNoCadastro(
   pedido,
   metodo,
   produto,
-  cobrancaCalculada
+  calculada,
+  assinatura = null
 ) {
   const referencia = db
     .collection('cadastrosSite')
@@ -317,7 +379,7 @@ async function salvarPedidoNoCadastro(
       );
     }
 
-    transaction.update(referencia, {
+    const atualizacao = {
       gatewayPagamento: 'pagarme',
 
       pedidoPagamento: String(pedido.id),
@@ -330,7 +392,7 @@ async function salvarPedidoNoCadastro(
       planoPagamento: produto.id,
 
       valorPagamentoCentavos:
-        cobrancaCalculada.valorCentavos,
+        calculada.valorCentavos,
 
       valorMensalCentavos:
         produto.valorMensalCentavos || null,
@@ -342,15 +404,36 @@ async function salvarPedidoNoCadastro(
         produto.valorTotalAnualCentavos || null,
 
       parcelasPagamento:
-        cobrancaCalculada.parcelas,
+        calculada.parcelas,
 
       tipoCobranca:
-        cobrancaCalculada.tipoCobranca,
+        calculada.tipoCobranca,
 
-      statusPedidoPagarme: texto(pedido.status),
+      statusPedidoPagarme:
+        texto(pedido.status),
 
       atualizadoEm: new Date().toISOString(),
-    });
+    };
+
+    if (assinatura) {
+      atualizacao.pagarmeSubscriptionId =
+        String(assinatura.id);
+
+      atualizacao.statusAssinatura =
+        texto(assinatura.status || 'pending');
+
+      atualizacao.proximaCobranca =
+        assinatura.start_at || null;
+
+      atualizacao.recorrenciaMensalCentavos =
+        produto.valorMensalCentavos;
+
+      atualizacao.recorrenciaIntervalo = 'month';
+
+      atualizacao.recorrenciaIntervaloQuantidade = 1;
+    }
+
+    transaction.update(referencia, atualizacao);
   });
 }
 
@@ -358,52 +441,48 @@ async function salvarPedidoNoCadastro(
    MONTAR RESPOSTA DO CHECKOUT
 ===================================================== */
 
-function gerarRespostaCheckout(
+function montarResposta(
   pedido,
   metodo,
   cadastroId,
   produto,
-  cobrancaCalculada
+  calculada,
+  assinatura = null
 ) {
-  const { cobranca, transacao } = extrairTransacao(pedido);
+  const { cobranca, transacao } =
+    extrairTransacao(pedido);
 
   let pix = null;
   let boleto = null;
 
   if (metodo === 'pix') {
-    const qrCode = primeiroValor(
-      transacao.qr_code,
-      transacao.qrCode,
-      transacao.copy_paste,
-      transacao.copyPaste
-    );
-
-    const qrCodeUrl = primeiroValor(
-      transacao.qr_code_url,
-      transacao.qrCodeUrl,
-      transacao.qr_code_image,
-      transacao.qrCodeImage,
-      transacao.url
-    );
-
-    const copiaECola = primeiroValor(
-      transacao.copy_paste,
-      transacao.copyPaste,
-      transacao.qr_code,
-      transacao.qrCode
-    );
-
     pix = {
-      qrCode,
-      qrCodeUrl,
-      copiaECola,
+      qrCode: primeiroValor(
+        transacao.qr_code,
+        transacao.qrCode
+      ),
+
+      qrCodeUrl: primeiroValor(
+        transacao.qr_code_url,
+        transacao.qrCodeUrl,
+        transacao.qr_code_image
+      ),
+
+      copiaECola: primeiroValor(
+        transacao.copy_paste,
+        transacao.copyPaste,
+        transacao.qr_code
+      ),
 
       expiracao: primeiroValor(
         transacao.expires_at,
         transacao.expiresAt
       ),
 
-      status: transacao.status || cobranca.status || pedido.status,
+      status:
+        transacao.status ||
+        cobranca.status ||
+        pedido.status,
     };
   }
 
@@ -419,15 +498,13 @@ function gerarRespostaCheckout(
       linhaDigitavel: primeiroValor(
         transacao.line,
         transacao.line_code,
-        transacao.linha_digitavel,
-        transacao.lineCode
+        transacao.linha_digitavel
       ),
 
       codigoBarras: primeiroValor(
         transacao.barcode,
         transacao.bar_code,
-        transacao.codigo_barras,
-        transacao.barCode
+        transacao.codigo_barras
       ),
 
       vencimento: primeiroValor(
@@ -435,7 +512,10 @@ function gerarRespostaCheckout(
         transacao.dueAt
       ),
 
-      status: transacao.status || cobranca.status || pedido.status,
+      status:
+        transacao.status ||
+        cobranca.status ||
+        pedido.status,
     };
   }
 
@@ -447,7 +527,8 @@ function gerarRespostaCheckout(
     plano: produto.id,
 
     valores: {
-      cobrancaCentavos: cobrancaCalculada.valorCentavos,
+      cobrancaCentavos:
+        calculada.valorCentavos,
 
       mensalidadeCentavos:
         produto.valorMensalCentavos || null,
@@ -458,7 +539,7 @@ function gerarRespostaCheckout(
       totalAnualCentavos:
         produto.valorTotalAnualCentavos || null,
 
-      parcelas: cobrancaCalculada.parcelas,
+      parcelas: calculada.parcelas,
     },
 
     pedido: {
@@ -468,9 +549,22 @@ function gerarRespostaCheckout(
       currency: pedido.currency,
     },
 
+    assinatura: assinatura ? {
+      id: assinatura.id,
+      status: assinatura.status,
+      inicio: assinatura.start_at || null,
+      proximaCobranca: assinatura.start_at || null,
+      valorMensalCentavos:
+        produto.valorMensalCentavos,
+      intervalo: 'mensal',
+    } : null,
+
     pagamento: {
       metodo,
-      status: cobranca.status || pedido.status,
+
+      status:
+        cobranca.status || pedido.status,
+
       chargeId: cobranca.id || null,
 
       pix,
@@ -504,10 +598,6 @@ router.post('/checkout', async (req, res) => {
       installments,
     } = req.body || {};
 
-    /* -----------------------------------------------
-       1. VALIDAR IDENTIFICADOR
-    ----------------------------------------------- */
-
     if (!texto(cadastroId)) {
       return res.status(400).json({
         success: false,
@@ -515,11 +605,8 @@ router.post('/checkout', async (req, res) => {
       });
     }
 
-    /* -----------------------------------------------
-       2. BUSCAR CADASTRO
-    ----------------------------------------------- */
-
-    const cadastro = await buscarCadastroInterno(cadastroId);
+    const cadastro =
+      await buscarCadastroInterno(cadastroId);
 
     if (!cadastro) {
       return res.status(404).json({
@@ -542,10 +629,6 @@ router.post('/checkout', async (req, res) => {
       });
     }
 
-    /* -----------------------------------------------
-       3. VALIDAR FORMA DE ADESÃO
-    ----------------------------------------------- */
-
     if (cadastro.dados.pagamento !== 'cartao') {
       return res.status(400).json({
         success: false,
@@ -553,15 +636,13 @@ router.post('/checkout', async (req, res) => {
       });
     }
 
-    /* -----------------------------------------------
-       4. CONFERIR PLANO
-    ----------------------------------------------- */
-
     const planoCadastro = texto(
       cadastro.dados.plano
     ).toLowerCase();
 
-    const planoRecebido = texto(plano).toLowerCase();
+    const planoRecebido = texto(
+      plano
+    ).toLowerCase();
 
     if (
       !planoCadastro ||
@@ -575,97 +656,74 @@ router.post('/checkout', async (req, res) => {
 
     const produto = obterPlano(planoCadastro);
 
-    /* -----------------------------------------------
-       5. VALIDAR CLIENTE
-    ----------------------------------------------- */
+    const customer = validarCliente(
+      cadastro.dados
+    );
 
-    const customer = validarCliente(cadastro.dados);
+    const metodo = texto(
+      paymentMethod
+    ).toLowerCase();
 
-    /* -----------------------------------------------
-       6. VALIDAR MÉTODO DE PAGAMENTO
-    ----------------------------------------------- */
-
-    const metodo = texto(paymentMethod).toLowerCase();
-
-    const metodosPermitidos = [
-      'pix',
-      'credit_card',
-      'boleto',
-    ];
-
-    if (!metodosPermitidos.includes(metodo)) {
+    if (!['pix', 'credit_card', 'boleto'].includes(metodo)) {
       return res.status(400).json({
         success: false,
-        error: 'Forma de pagamento inválida. Informe pix, credit_card ou boleto.',
+        error: 'Forma de pagamento inválida.',
       });
     }
 
-    /* -----------------------------------------------
-       7. CALCULAR VALOR NO BACKEND
-    ----------------------------------------------- */
-
-    const cobrancaCalculada = calcularCobranca(
+    const calculada = calcularCobranca(
       produto,
       metodo,
       installments
     );
 
-    /* -----------------------------------------------
-       8. VERIFICAR PEDIDO EXISTENTE
-    ----------------------------------------------- */
+    const token = texto(cardToken);
 
-    const pedidoExistente = await consultarPedidoExistente(
-      cadastro,
-      metodo,
-      cobrancaCalculada
-    );
+    if (metodo === 'credit_card' && !token) {
+      return res.status(400).json({
+        success: false,
+        error: 'Token do cartão não informado.',
+      });
+    }
+
+    const pedidoExistente =
+      await consultarPedidoExistente(
+        cadastro,
+        metodo,
+        calculada
+      );
 
     if (pedidoExistente) {
       return res.status(200).json(
-        gerarRespostaCheckout(
+        montarResposta(
           pedidoExistente,
           metodo,
           cadastroId,
           produto,
-          cobrancaCalculada
+          calculada,
+          null
         )
       );
     }
-
-    /* -----------------------------------------------
-       9. CONFIGURAR PAGAMENTO
-    ----------------------------------------------- */
 
     const payment = {
       payment_method: metodo,
     };
 
-    // PIX
     if (metodo === 'pix') {
       payment.pix = {
         expires_in: 1800,
       };
     }
 
-    // CARTÃO DE CRÉDITO
     if (metodo === 'credit_card') {
-      const token = texto(cardToken);
-
-      if (!token) {
-        return res.status(400).json({
-          success: false,
-          error: 'Token do cartão não informado.',
-        });
-      }
-
       payment.credit_card = {
         card_token: token,
-        installments: cobrancaCalculada.parcelas,
+        installments: calculada.parcelas,
         statement_descriptor: 'DR DE TODOS',
       };
     }
 
-    // BOLETO
     if (metodo === 'boleto') {
       payment.boleto = {
         instructions:
@@ -677,30 +735,22 @@ router.post('/checkout', async (req, res) => {
       };
     }
 
-    /* -----------------------------------------------
-       10. CHAVE DE IDEMPOTÊNCIA
-    ----------------------------------------------- */
-
     const chaveIdempotencia = crypto
       .createHash('sha256')
       .update([
         cadastroId,
         produto.id,
         metodo,
-        cobrancaCalculada.valorCentavos,
-        cobrancaCalculada.parcelas,
+        calculada.valorCentavos,
+        calculada.parcelas,
       ].join(':'))
       .digest('hex');
-
-    /* -----------------------------------------------
-       11. MONTAR PEDIDO
-    ----------------------------------------------- */
 
     const dadosPedido = {
       items: [
         {
-          amount: cobrancaCalculada.valorCentavos,
-          description: cobrancaCalculada.descricao,
+          amount: calculada.valorCentavos,
+          description: calculada.descricao,
           quantity: 1,
           code: produto.id,
         },
@@ -712,27 +762,22 @@ router.post('/checkout', async (req, res) => {
 
       metadata: {
         cadastro_id: String(cadastroId),
-
         plano: produto.id,
-
         origem: 'site_doutor_de_todos',
-
         gateway: 'pagarme',
 
         tipo_cobranca:
-          cobrancaCalculada.tipoCobranca,
+          calculada.tipoCobranca,
 
         valor_cobranca_centavos:
-          String(cobrancaCalculada.valorCentavos),
+          String(calculada.valorCentavos),
 
         parcelas:
-          String(cobrancaCalculada.parcelas),
+          String(calculada.parcelas),
       },
     };
 
-    /* -----------------------------------------------
-       12. CRIAR PEDIDO NA PAGAR.ME
-    ----------------------------------------------- */
+    /* CRIAR PEDIDO INICIAL */
 
     const pedido = await pagarmeService.criarPedido(
       dadosPedido,
@@ -746,110 +791,127 @@ router.post('/checkout', async (req, res) => {
       );
     }
 
-    /* -----------------------------------------------
-       13. CONFERIR VALOR RETORNADO
-    ----------------------------------------------- */
-
     if (
       pedido.amount !== undefined &&
       Number(pedido.amount) !==
-      Number(cobrancaCalculada.valorCentavos)
+      calculada.valorCentavos
     ) {
-      console.error('Valor divergente no pedido Pagar.me:', {
-        pedidoId: pedido.id,
-        valorEsperado: cobrancaCalculada.valorCentavos,
-        valorRetornado: pedido.amount,
-      });
-
       throw erroHttp(
-        'O valor retornado pela Pagar.me é diferente do valor calculado. Entre em contato com o atendimento.',
+        'O valor retornado pela Pagar.me diverge do valor calculado.',
         502
       );
     }
 
-    /* -----------------------------------------------
-       14. SALVAR PEDIDO NO FIREBASE
-    ----------------------------------------------- */
+    /* =================================================
+       CRIAR ASSINATURA MENSAL DO LIGHT
+
+       Primeira cobrança: R$ 139,80.
+       Próxima cobrança: R$ 39,90 após um mês.
+    ================================================= */
+
+    let assinatura = null;
+
+    if (produto.id === 'light') {
+      const planId = texto(
+        process.env.PAGARME_PLANO_LIGHT_ID
+      );
+
+      if (!planId) {
+        throw erroHttp(
+          'PAGARME_PLANO_LIGHT_ID não está configurado no servidor.',
+          500
+        );
+      }
+
+      const proximaData = adicionarUmMes(
+        new Date()
+      );
+
+      const startAt = [
+        proximaData.getFullYear(),
+        String(proximaData.getMonth() + 1).padStart(2, '0'),
+        String(proximaData.getDate()).padStart(2, '0'),
+      ].join('-');
+
+      assinatura =
+        await pagarmeService.criarAssinatura(
+          {
+            plan_id: planId,
+
+            payment_method: 'credit_card',
+
+            start_at: startAt,
+
+            customer,
+
+            card: {
+              card_token: token,
+            },
+
+            installments: 1,
+
+            metadata: {
+              cadastro_id: String(cadastroId),
+              plano: 'light',
+              origem: 'site_doutor_de_todos',
+
+              pedido_inicial_id:
+                String(pedido.id),
+
+              tipo_cobranca:
+                'mensalidade_recorrente',
+            },
+          },
+
+          crypto
+            .createHash('sha256')
+            .update(
+              `${cadastroId}:light:subscription:${startAt}`
+            )
+            .digest('hex')
+        );
+
+      if (!assinatura?.id) {
+        throw erroHttp(
+          'A cobrança inicial foi criada, mas a assinatura mensal não foi confirmada pela Pagar.me. Não tente pagar novamente; contate o atendimento.',
+          502
+        );
+      }
+    }
+
+    /* SALVAR PEDIDO E ASSINATURA */
 
     await salvarPedidoNoCadastro(
       cadastroId,
       pedido,
       metodo,
       produto,
-      cobrancaCalculada
+      calculada,
+      assinatura
     );
 
-    /* -----------------------------------------------
-       15. DIAGNÓSTICO DA RESPOSTA PIX
-    ----------------------------------------------- */
-
-    const { cobranca, transacao } = extrairTransacao(pedido);
-
-    if (metodo === 'pix') {
-      console.log('DIAGNÓSTICO PIX PAGAR.ME:', {
-        pedidoId: pedido.id,
-        statusPedido: pedido.status,
-
-        chargeId: cobranca.id || null,
-        statusCobranca: cobranca.status || null,
-
-        possuiTransacao: Boolean(
-          cobranca.last_transaction ||
-          cobranca.lastTransaction ||
-          cobranca.transaction
-        ),
-
-        possuiQrCode: Boolean(
-          transacao.qr_code ||
-          transacao.qrCode
-        ),
-
-        possuiQrCodeUrl: Boolean(
-          transacao.qr_code_url ||
-          transacao.qrCodeUrl ||
-          transacao.qr_code_image
-        ),
-
-        possuiCopiaECola: Boolean(
-          transacao.copy_paste ||
-          transacao.copyPaste
-        ),
-
-        statusTransacao: transacao.status || null,
-      });
-    }
-
-    /* -----------------------------------------------
-       16. REGISTRAR PEDIDO
-    ----------------------------------------------- */
-
-    console.log('Pedido Pagar.me criado:', {
+    console.log('Checkout Pagar.me criado:', {
       cadastroId,
       plano: produto.id,
       pedidoId: pedido.id,
-      status: pedido.status,
-      metodo,
-      valorCentavos: cobrancaCalculada.valorCentavos,
-      parcelas: cobrancaCalculada.parcelas,
-      chargeId: cobranca.id || null,
+      pedidoStatus: pedido.status,
+      assinaturaId: assinatura?.id || null,
+      proximaCobranca: assinatura?.start_at || null,
     });
 
-    /* -----------------------------------------------
-       17. DEVOLVER DADOS AO FRONTEND
-    ----------------------------------------------- */
-
     return res.status(201).json(
-      gerarRespostaCheckout(
+      montarResposta(
         pedido,
         metodo,
         cadastroId,
         produto,
-        cobrancaCalculada
+        calculada,
+        assinatura
       )
     );
 
   } catch (error) {
-    console.error('Erro ao criar checkout Pagar.me:', {
+    console.error('Erro no checkout Pagar.me:', {
       mensagem: error.message,
       status: error.status || 502,
       codigo: error.codigo || null,
