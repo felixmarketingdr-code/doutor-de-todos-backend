@@ -1268,4 +1268,5 @@ module.exports = {
   criarAssinatura,
 
   consultarAssinatura,
+
 };
