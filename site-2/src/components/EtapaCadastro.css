@@ -1,0 +1,484 @@
+
+/* =====================================================
+   ETAPA CADASTRO - DOUTOR DE TODOS
+   ===================================================== */
+
+.etapa-cadastro {
+  width: 100%;
+  min-height: 100vh;
+  padding: 48px 20px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  background: #f4f7fb;
+  box-sizing: border-box;
+  font-family: "Inter", "Segoe UI", Arial, sans-serif;
+  color: #172b4d;
+}
+
+.etapa-cadastro *,
+.etapa-cadastro *::before,
+.etapa-cadastro *::after {
+  box-sizing: border-box;
+}
+
+/* CONTAINER PRINCIPAL */
+
+.etapa-cadastro-container {
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 36px;
+  background: #ffffff;
+  border: 1px solid #e7edf5;
+  border-radius: 18px;
+  box-shadow: 0 12px 40px rgba(20, 45, 85, 0.07);
+}
+
+/* CABEÇALHO */
+
+.etapa-cadastro-header {
+  margin-bottom: 32px;
+  text-align: center;
+}
+
+.etapa-cadastro-header h1,
+.etapa-cadastro-header h2 {
+  margin: 0 0 10px;
+  color: #123b70;
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.etapa-cadastro-header p {
+  margin: 0;
+  color: #68778d;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+/* PROGRESSO */
+
+.etapa-cadastro-progresso {
+  width: 100%;
+  height: 7px;
+  margin-bottom: 30px;
+  overflow: hidden;
+  background: #e8eef6;
+  border-radius: 20px;
+}
+
+.etapa-cadastro-progresso-barra {
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, #1265b3, #22a6a1);
+  border-radius: inherit;
+  transition: width 0.3s ease;
+}
+
+/* SEÇÕES */
+
+.etapa-cadastro-secao {
+  margin-bottom: 28px;
+  padding: 22px;
+  background: #ffffff;
+  border: 1px solid #e8edf4;
+  border-radius: 13px;
+}
+
+.etapa-cadastro-secao h3 {
+  margin: 0 0 20px;
+  color: #174b80;
+  font-size: 17px;
+  font-weight: 750;
+}
+
+.etapa-cadastro-secao p {
+  color: #64748b;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* GRID DOS CAMPOS */
+
+.etapa-cadastro-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.etapa-cadastro-campo {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 8px;
+}
+
+.etapa-cadastro-campo.completo {
+  grid-column: 1 / -1;
+}
+
+/* LABELS */
+
+.etapa-cadastro label {
+  color: #34445b;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.etapa-cadastro label span {
+  color: #e04444;
+}
+
+/* INPUTS */
+
+.etapa-cadastro input,
+.etapa-cadastro select,
+.etapa-cadastro textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  padding: 12px 14px;
+  color: #24364d;
+  background: #ffffff;
+  border: 1px solid #d8e0eb;
+  border-radius: 9px;
+  outline: none;
+  font-family: inherit;
+  font-size: 14px;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+}
+
+.etapa-cadastro textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+
+.etapa-cadastro input::placeholder,
+.etapa-cadastro textarea::placeholder {
+  color: #a0aaba;
+}
+
+.etapa-cadastro input:hover,
+.etapa-cadastro select:hover,
+.etapa-cadastro textarea:hover {
+  border-color: #aabbd0;
+}
+
+.etapa-cadastro input:focus,
+.etapa-cadastro select:focus,
+.etapa-cadastro textarea:focus {
+  border-color: #1769aa;
+  box-shadow: 0 0 0 3px rgba(23, 105, 170, 0.12);
+}
+
+.etapa-cadastro input:disabled,
+.etapa-cadastro select:disabled,
+.etapa-cadastro textarea:disabled {
+  background: #f1f4f8;
+  color: #8a96a8;
+  cursor: not-allowed;
+}
+
+/* PLANOS */
+
+.etapa-cadastro-planos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 15px;
+}
+
+.etapa-cadastro-plano {
+  position: relative;
+  padding: 20px;
+  border: 2px solid #e1e8f1;
+  border-radius: 13px;
+  background: #ffffff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.etapa-cadastro-plano:hover {
+  border-color: #4d91c8;
+  transform: translateY(-2px);
+}
+
+.etapa-cadastro-plano.selecionado {
+  border-color: #1769aa;
+  background: #f2f8ff;
+  box-shadow: 0 5px 18px rgba(23, 105, 170, 0.09);
+}
+
+.etapa-cadastro-plano h4 {
+  margin: 0 0 8px;
+  color: #164b7b;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.etapa-cadastro-plano .preco {
+  margin: 10px 0;
+  color: #123b70;
+  font-size: 25px;
+  font-weight: 800;
+}
+
+.etapa-cadastro-plano p {
+  margin: 5px 0;
+  color: #65758b;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* OPÇÕES DE PAGAMENTO */
+
+.etapa-cadastro-pagamentos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.etapa-cadastro-pagamento {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 15px;
+  border: 1px solid #dce5ef;
+  border-radius: 10px;
+  background: #ffffff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.etapa-cadastro-pagamento:hover {
+  border-color: #1769aa;
+  background: #f6faff;
+}
+
+.etapa-cadastro-pagamento.selecionado {
+  border: 2px solid #1769aa;
+  background: #f2f8ff;
+}
+
+.etapa-cadastro-pagamento input {
+  width: 17px;
+  min-height: auto;
+  height: 17px;
+  margin: 0;
+  accent-color: #1769aa;
+}
+
+.etapa-cadastro-pagamento span {
+  color: #34445b;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+/* TERMOS */
+
+.etapa-cadastro-termos {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 20px 0;
+  color: #58677d;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.etapa-cadastro-termos input {
+  flex: 0 0 17px;
+  width: 17px;
+  min-height: auto;
+  height: 17px;
+  margin-top: 3px;
+  accent-color: #1769aa;
+}
+
+.etapa-cadastro-termos a {
+  color: #1769aa;
+  text-decoration: underline;
+}
+
+/* BOTÕES */
+
+.etapa-cadastro-acoes {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  margin-top: 28px;
+}
+
+.etapa-cadastro button {
+  min-height: 48px;
+  padding: 13px 24px;
+  border: none;
+  border-radius: 9px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 750;
+  cursor: pointer;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+}
+
+.etapa-cadastro button:active {
+  transform: scale(0.98);
+}
+
+.etapa-cadastro button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.etapa-cadastro .btn-principal {
+  color: #ffffff;
+  background: linear-gradient(135deg, #1265aa, #17477d);
+  box-shadow: 0 5px 14px rgba(18, 101, 170, 0.18);
+}
+
+.etapa-cadastro .btn-principal:hover:not(:disabled) {
+  background: linear-gradient(135deg, #0c5596, #123b70);
+  box-shadow: 0 7px 18px rgba(18, 101, 170, 0.24);
+}
+
+.etapa-cadastro .btn-secundario {
+  color: #35516e;
+  background: #edf2f7;
+}
+
+.etapa-cadastro .btn-secundario:hover:not(:disabled) {
+  background: #dfe8f1;
+}
+
+/* MENSAGENS */
+
+.etapa-cadastro-erro,
+.etapa-cadastro-sucesso,
+.etapa-cadastro-aviso {
+  margin: 15px 0;
+  padding: 13px 15px;
+  border-radius: 9px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.etapa-cadastro-erro {
+  color: #a12b2b;
+  background: #fff0f0;
+  border: 1px solid #f3cccc;
+}
+
+.etapa-cadastro-sucesso {
+  color: #176b42;
+  background: #edfaf2;
+  border: 1px solid #c6ebd3;
+}
+
+.etapa-cadastro-aviso {
+  color: #8a5a12;
+  background: #fff8e9;
+  border: 1px solid #f0dfb9;
+}
+
+/* INFORMAÇÕES DE SEGURANÇA */
+
+.etapa-cadastro-seguranca {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  margin-top: 22px;
+  color: #8491a3;
+  font-size: 12px;
+  text-align: center;
+}
+
+/* RESPONSIVIDADE */
+
+@media (max-width: 640px) {
+  .etapa-cadastro {
+    min-height: auto;
+    padding: 20px 12px;
+  }
+
+  .etapa-cadastro-container {
+    padding: 23px 17px;
+    border-radius: 13px;
+  }
+
+  .etapa-cadastro-header {
+    margin-bottom: 24px;
+  }
+
+  .etapa-cadastro-header h1,
+  .etapa-cadastro-header h2 {
+    font-size: 23px;
+  }
+
+  .etapa-cadastro-grid {
+    grid-template-columns: 1fr;
+    gap: 15px;
+  }
+
+  .etapa-cadastro-campo.completo {
+    grid-column: auto;
+  }
+
+  .etapa-cadastro-secao {
+    padding: 17px 13px;
+    margin-bottom: 20px;
+  }
+
+  .etapa-cadastro-planos {
+    grid-template-columns: 1fr;
+  }
+
+  .etapa-cadastro-pagamentos {
+    grid-template-columns: 1fr;
+  }
+
+  .etapa-cadastro-acoes {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .etapa-cadastro-acoes button {
+    width: 100%;
+  }
+
+  .etapa-cadastro input,
+  .etapa-cadastro select,
+  .etapa-cadastro textarea {
+    font-size: 16px;
+  }
+}
+
+/* TELAS MUITO PEQUENAS */
+
+@media (max-width: 360px) {
+  .etapa-cadastro {
+    padding: 12px 8px;
+  }
+
+  .etapa-cadastro-container {
+    padding: 18px 12px;
+  }
+
+  .etapa-cadastro-header h1,
+  .etapa-cadastro-header h2 {
+    font-size: 21px;
+  }
+
+  .etapa-cadastro-plano .preco {
+    font-size: 22px;
+  }
+}

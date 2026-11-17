@@ -1,0 +1,524 @@
+
+/* ==========================================
+   DOUTOR DE TODOS — ETAPA BOAS-VINDAS
+   Design premium | Plano Básico R$ 39,90
+========================================== */
+
+.landing-basic {
+  --teal: #009d98;
+  --teal-dark: #007c78;
+  --green: #00a477;
+  --green-light: #e9f8f2;
+  --navy: #17364b;
+  --gray: #637783;
+  --white: #ffffff;
+
+  width: 100%;
+  min-height: 100vh;
+  background:
+    radial-gradient(
+      ellipse at 90% 15%,
+      rgba(0, 166, 119, 0.055),
+      transparent 38%
+    ),
+    linear-gradient(180deg, #ffffff 0%, #fbfefd 100%);
+
+  color: var(--navy);
+  font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+  overflow: hidden;
+}
+
+/* ==========================================
+   CONTEÚDO PRINCIPAL
+========================================== */
+
+.landing-basic .basic-main {
+  width: 100%;
+  max-width: 1160px;
+  min-height: 550px;
+  margin: 0 auto;
+  padding: 65px 30px 75px;
+
+  display: grid;
+  grid-template-columns: 0.96fr 1.04fr;
+  align-items: center;
+  gap: 55px;
+
+  box-sizing: border-box;
+}
+
+/* ==========================================
+   TEXTO PRINCIPAL
+========================================== */
+
+.landing-basic .basic-copy {
+  position: relative;
+  z-index: 2;
+  max-width: 530px;
+}
+
+/* SELO */
+
+.landing-basic .basic-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+
+  padding: 9px 16px;
+  margin-bottom: 23px;
+
+  background: linear-gradient(
+    120deg,
+    #e5f7f0,
+    #f0faf7
+  );
+
+  border: 1px solid #d8f0e6;
+  border-radius: 50px;
+
+  color: #007c70;
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.2px;
+
+  box-shadow: 0 3px 12px rgba(0, 124, 112, 0.045);
+}
+
+.landing-basic .basic-tag span {
+  font-size: 16px;
+}
+
+/* TÍTULO */
+
+.landing-basic .basic-copy h1 {
+  margin: 0 0 21px;
+
+  color: #173b4e;
+
+  font-size: clamp(32px, 3.5vw, 45px);
+  font-weight: 800;
+  line-height: 1.13;
+  letter-spacing: -1.7px;
+}
+
+.landing-basic .basic-copy h1 span {
+  display: inline;
+
+  background: linear-gradient(
+    100deg,
+    #00a477,
+    #008b83
+  );
+
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* DESCRIÇÃO */
+
+.landing-basic .basic-description {
+  max-width: 470px;
+
+  margin: 0 0 25px;
+
+  color: #647681;
+  font-size: 14px;
+  line-height: 1.85;
+  font-weight: 400;
+}
+
+/* ==========================================
+   BENEFÍCIOS
+========================================== */
+
+.landing-basic .basic-features {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+}
+
+.landing-basic .basic-features div {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+
+  color: #405d68;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.5;
+
+  transition: transform 0.2s ease;
+}
+
+.landing-basic .basic-features div:hover {
+  transform: translateX(4px);
+}
+
+.landing-basic .basic-features div span {
+  width: 21px;
+  height: 21px;
+  min-width: 21px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 1.5px solid #00a477;
+  border-radius: 50%;
+
+  background: #edfaf4;
+  color: #009c70;
+
+  font-size: 12px;
+  font-weight: 800;
+}
+
+/* OBSERVAÇÃO */
+
+.landing-basic .basic-observation {
+  max-width: 440px;
+
+  margin: 21px 0 0;
+
+  color: #81918f;
+  font-size: 11px;
+  line-height: 1.75;
+}
+
+/* ==========================================
+   BOTÃO DE CONVERSÃO
+========================================== */
+
+.landing-basic .basic-cta {
+  width: 100%;
+  max-width: 350px;
+  min-height: 53px;
+
+  margin-top: 23px;
+  padding: 0 22px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 17px;
+
+  border: 1px solid rgba(255,255,255,0.25);
+  border-radius: 9px;
+
+  background: linear-gradient(
+    110deg,
+    #00a66f 0%,
+    #008e69 55%,
+    #007d65 100%
+  );
+
+  color: #ffffff;
+
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.65px;
+
+  cursor: pointer;
+
+  box-shadow:
+    0 8px 20px rgba(0, 143, 105, 0.19),
+    inset 0 1px 0 rgba(255,255,255,0.18);
+
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease,
+    filter 0.25s ease;
+}
+
+.landing-basic .basic-cta:hover {
+  transform: translateY(-3px);
+
+  filter: brightness(1.06);
+
+  box-shadow:
+    0 12px 27px rgba(0, 143, 105, 0.25),
+    inset 0 1px 0 rgba(255,255,255,0.2);
+}
+
+.landing-basic .basic-cta:active {
+  transform: translateY(-1px);
+}
+
+.landing-basic .basic-cta span {
+  font-size: 21px;
+  transition: transform 0.2s ease;
+}
+
+.landing-basic .basic-cta:hover span {
+  transform: translateX(4px);
+}
+
+.landing-basic .basic-cta-note {
+  display: block;
+
+  max-width: 350px;
+  margin-top: 11px;
+
+  color: #929f9c;
+  font-size: 10px;
+  text-align: center;
+}
+
+/* ==========================================
+   IMAGEM PRINCIPAL
+========================================== */
+
+.landing-basic .basic-visual {
+  position: relative;
+
+  width: 100%;
+  min-width: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  transform: translateY(27px);
+}
+
+/* AURA DE FUNDO */
+
+.landing-basic .basic-image-decoration {
+  position: absolute;
+  z-index: 1;
+
+  width: 78%;
+  height: 76%;
+
+  border-radius: 50%;
+
+  background: radial-gradient(
+    circle,
+    rgba(0, 190, 150, 0.20),
+    rgba(0, 157, 152, 0.08) 55%,
+    transparent 75%
+  );
+
+  filter: blur(35px);
+}
+
+/* FOTOGRAFIA */
+
+.landing-basic .basic-visual > img {
+  position: relative;
+  z-index: 2;
+
+  display: block;
+
+  width: 100%;
+  max-width: 530px;
+  height: auto;
+
+  object-fit: contain;
+
+  border-radius: 18px;
+
+  filter: drop-shadow(
+    0 17px 25px rgba(20, 75, 75, 0.09)
+  );
+
+  transition: transform 0.35s ease;
+}
+
+.landing-basic .basic-visual:hover > img {
+  transform: scale(1.012);
+}
+
+/* MENSAGEM FLUTUANTE */
+
+.landing-basic .basic-image-message {
+  position: absolute;
+  z-index: 3;
+
+  right: 1%;
+  bottom: 7%;
+
+  display: flex;
+  align-items: center;
+  gap: 7px;
+
+  padding: 13px 17px;
+
+  background: rgba(255,255,255,0.96);
+
+  border: 1px solid #dcefe8;
+  border-radius: 10px;
+
+  box-shadow:
+    0 8px 25px rgba(20, 65, 65, 0.10),
+    0 2px 5px rgba(20, 65, 65, 0.04);
+
+  color: #007e76;
+
+  font-size: 11px;
+  font-weight: 750;
+
+  backdrop-filter: blur(10px);
+}
+
+.landing-basic .basic-image-message span {
+  color: #00a477;
+  font-size: 16px;
+}
+
+/* ==========================================
+   ANIMAÇÃO SUAVE
+========================================== */
+
+@keyframes basicFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.landing-basic .basic-copy {
+  animation: basicFadeIn 0.65s ease both;
+}
+
+.landing-basic .basic-visual {
+  animation: basicFadeIn 0.8s ease both;
+}
+
+/* ==========================================
+   TABLETS
+========================================== */
+
+@media (max-width: 900px) {
+
+  .landing-basic .basic-main {
+    gap: 30px;
+    padding: 50px 25px 65px;
+  }
+
+  .landing-basic .basic-copy h1 {
+    font-size: 35px;
+  }
+
+  .landing-basic .basic-visual {
+    transform: translateY(20px);
+  }
+
+}
+
+/* ==========================================
+   CELULARES
+========================================== */
+
+@media (max-width: 760px) {
+
+  .landing-basic .basic-main {
+    grid-template-columns: 1fr;
+
+    padding: 30px 22px 48px;
+    gap: 25px;
+  }
+
+  .landing-basic .basic-copy {
+    max-width: 100%;
+  }
+
+  .landing-basic .basic-copy h1 {
+    font-size: clamp(30px, 8vw, 37px);
+    letter-spacing: -1.2px;
+  }
+
+  .landing-basic .basic-description {
+    font-size: 14px;
+  }
+
+  /* Imagem acima do texto no celular */
+
+  .landing-basic .basic-visual {
+    order: -1;
+    transform: translateY(8px);
+  }
+
+  .landing-basic .basic-visual > img {
+    max-width: 480px;
+  }
+
+  .landing-basic .basic-image-message {
+    right: 2%;
+    bottom: 5%;
+    padding: 11px 13px;
+    font-size: 10px;
+  }
+
+  .landing-basic .basic-cta {
+    max-width: 100%;
+    min-height: 55px;
+  }
+
+  .landing-basic .basic-cta-note {
+    max-width: 100%;
+  }
+
+}
+
+/* ==========================================
+   CELULARES PEQUENOS
+========================================== */
+
+@media (max-width: 420px) {
+
+  .landing-basic .basic-main {
+    padding: 24px 18px 40px;
+    gap: 20px;
+  }
+
+  .landing-basic .basic-tag {
+    font-size: 10px;
+    padding: 8px 12px;
+  }
+
+  .landing-basic .basic-copy h1 {
+    font-size: 30px;
+  }
+
+  .landing-basic .basic-features {
+    gap: 12px;
+  }
+
+  .landing-basic .basic-features div {
+    font-size: 12px;
+  }
+
+  .landing-basic .basic-image-message {
+    right: 0;
+    bottom: 3%;
+    padding: 9px 11px;
+    font-size: 9px;
+  }
+
+  .landing-basic .basic-observation {
+    font-size: 10px;
+  }
+
+}
+
+/* ==========================================
+   ACESSIBILIDADE
+========================================== */
+
+@media (prefers-reduced-motion: reduce) {
+
+  .landing-basic *,
+  .landing-basic *::before,
+  .landing-basic *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+
+}
