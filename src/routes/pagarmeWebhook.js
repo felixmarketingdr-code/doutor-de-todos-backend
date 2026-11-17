@@ -255,13 +255,42 @@ function obterPedidoSalvo(cadastro) {
 // VALIDAR VÍNCULO DO PEDIDO COM O CADASTRO
 // ======================================================
 
-function validarVinculoPedido(cadastro, pedidoId) {
+function validarVinculoPedido(cadastro, pedidoId, cadastroIdMetadata) {
   const pedidoSalvo = obterPedidoSalvo(cadastro);
+  const cadastroIdSalvo = texto(
+    cadastro.id ||
+    cadastro.cadastroId ||
+    cadastro._id
+  );
 
+  // O pedido é consultado diretamente na Pagar.me e seu metadata
+  // já foi validado em validarDadosPedido(). Se o webhook chegar
+  // antes de o checkout gravar o pedido no cadastro, aceitamos o
+  // vínculo provisório somente quando o cadastro do metadata
+  // corresponde ao cadastro que foi localizado no Firebase.
   if (!pedidoSalvo) {
-    throw new Error(
-      "O cadastro ainda não possui um pedido Pagar.me vinculado."
+    if (
+      !cadastroIdMetadata ||
+      (cadastroIdSalvo && cadastroIdSalvo !== String(cadastroIdMetadata))
+    ) {
+      throw new Error(
+        "Não foi possível confirmar o vínculo do pedido com o cadastro."
+      );
+    }
+
+    console.warn(
+      "Webhook recebido antes da gravação do pedido no cadastro. " +
+      "Vínculo validado pelo metadata do pedido:",
+      {
+        pedidoId,
+        cadastroId: cadastroIdMetadata,
+      }
     );
+
+    return {
+      vinculoPendente: true,
+      pedidoSalvo: null,
+    };
   }
 
   if (String(pedidoSalvo) !== String(pedidoId)) {
@@ -269,6 +298,11 @@ function validarVinculoPedido(cadastro, pedidoId) {
       "O pedido recebido não corresponde ao pedido vinculado ao cadastro."
     );
   }
+
+  return {
+    vinculoPendente: false,
+    pedidoSalvo,
+  };
 }
 
 // ======================================================
@@ -398,7 +432,11 @@ router.post("/:token", async (req, res) => {
       );
     }
 
-    validarVinculoPedido(cadastro, pedidoId);
+    const validacaoVinculo = validarVinculoPedido(
+      cadastro,
+      pedidoId,
+      cadastroId
+    );
 
     // ======================================
     // 7. PAGAMENTO CONFIRMADO
